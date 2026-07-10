@@ -1,0 +1,4 @@
+build/
+diff_gaussian_rasterization.egg-info/
+vgg_checkpoint/
+dist/
