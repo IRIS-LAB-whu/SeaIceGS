@@ -1,3 +1,5 @@
+![SeaIceGS pipeline](pipeline.jpeg)
+
 # SeaIceGS
 
 SeaIceGS is a research codebase for polar region 3D reconstruction from multi-view imagery. It adapts Gaussian Splatting-based surface reconstruction to polar  scenes, where weak texture, high reflectance, and fragmented ice geometry make dense reconstruction difficult.
