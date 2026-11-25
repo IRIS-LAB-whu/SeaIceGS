@@ -59,7 +59,7 @@ class ModelParams(ParamGroup):
         self.multi_view_num = 8
         self.multi_view_max_angle = 30
         self.multi_view_min_dis = 0.01
-        self.multi_view_max_dis = 1.5
+        self.multi_view_max_dis = 50
         super().__init__(parser, "Loading Parameters", sentinel)
 
     def extract(self, args):
@@ -99,7 +99,7 @@ class OptimizationParams(ParamGroup):
         self.depth_weight_until_iter = 25_000
         self.single_view_weight = 0.015 
         self.edged_weight = 0.075   
-        self.depth_weight = 0.5
+        self.depth_weight = 0.05
         self.single_view_weight_from_iter = 30000
         self.start_embed_iter = 0
         self.end_embed_iter = 30000
