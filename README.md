@@ -1,10 +1,41 @@
-![SeaIceGS pipeline](pipeline.jpeg)
-
 # SeaIceGS
 
-SeaIceGS is a research codebase for polar region 3D reconstruction from multi-view imagery. It adapts Gaussian Splatting-based surface reconstruction to polar  scenes, where weak texture, high reflectance, and fragmented ice geometry make dense reconstruction difficult.
+[![Journal: IEEE JSTARS](https://img.shields.io/badge/Journal-IEEE%20JSTARS-00629B)](#publication)
+[![Status: Published Online](https://img.shields.io/badge/Status-Published%20Online-357A46)](#publication)
+[![DOI](https://img.shields.io/badge/DOI-10.1109%2FJSTARS.2026.3753633-00629B)](https://doi.org/10.1109/JSTARS.2026.3753633)
 
-The project takes image sequences and camera poses as input, trains a Gaussian scene representation, renders RGB/depth/normal views, and exports a mesh through TSDF fusion. The generated DOM/DSM products can be used by downstream sea-ice retrieval workflows such as SIC and freeboard estimation.
+**SeaIceGS: Depth-constrained 3D Gaussian Splatting for Sea Ice Concentration and Total Freeboard Estimation from Polar UAV Imagery**
+
+Quanjian Ji, Tengfei Wang, Yifei Yu, Zhe Shen, Shuhang Zhang, Yue Shen, Tianxing Wang, Zhuoqi Chen, Songtao Ai, Xin Wang, and Zongqian Zhan
+
+*IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing (JSTARS), 2026.*
+
+[Paper (IEEE Xplore)](https://ieeexplore.ieee.org/document/11794150) · [DOI](https://doi.org/10.1109/JSTARS.2026.3753633) · [Citation](#citation) · [Sea-Ice Retrieval Code](https://github.com/QuanJianji/IceRetrieval)
+
+SeaIceGS reconstructs sea-ice scenes from multi-view imagery using depth-constrained 3D Gaussian Splatting. The framework connects 3D reconstruction with digital orthophoto map (DOM) and digital surface model (DSM) generation, supporting downstream sea ice concentration (SIC) and total freeboard (TFB) retrieval.
+
+[Method Overview](#method-overview) · [Installation](#installation) · [Data Preparation](#data-preparation) · [Training](#training) · [Mesh Extraction](#rendering-and-mesh-extraction) · [Digital Products](#digital-product-generation) · [Sea-Ice Retrieval](#sea-ice-parameter-retrieval)
+
+## Publication
+
+The SeaIceGS paper has been accepted by **IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing (JSTARS)** and is now [available online through IEEE Xplore](https://ieeexplore.ieee.org/document/11794150). The published article is identified by DOI [10.1109/JSTARS.2026.3753633](https://doi.org/10.1109/JSTARS.2026.3753633).
+
+## Method Overview
+
+<p align="center">
+  <a href="assets/seaicegs_pipeline.png">
+    <img src="assets/seaicegs_pipeline.png" alt="SeaIceGS framework: depth-constrained 3D Gaussian Splatting and digital product generation, followed by Otsu and tiled Lang-SAM mask generation, sea ice concentration estimation, and total freeboard retrieval." width="100%">
+  </a>
+</p>
+
+*Overview of the SeaIceGS framework. Part A reconstructs a Gaussian scene and generates DOM/DSM products. Part B uses these products for sea-ice mask generation, SIC estimation, and TFB retrieval.*
+
+The workflow has two parts:
+
+1. **Depth-constrained 3D reconstruction and digital product generation.** Structure from Motion (SfM) provides camera poses and sparse points. Murre depth estimates provide geometric priors for Gaussian optimization, together with depth and edge-aware geometric constraints. Rendered depth maps are fused into a mesh using TSDF, and the mesh is used to generate DOM and DSM products.
+2. **Sea-ice parameter retrieval.** The DOM is used to generate an ice mask with Otsu thresholding and an icebreaker mask with tiled Lang-SAM segmentation. These masks are combined into a final ice mask for SIC estimation. The DSM and masks support TFB retrieval using a sliding window and KNN interpolation.
+
+This repository provides the reconstruction and digital product generation components. The downstream mask generation and SIC/TFB retrieval workflow is maintained in [IceRetrieval](https://github.com/QuanJianji/IceRetrieval).
 
 ## Project Layout
 
@@ -15,6 +46,7 @@ SeaIceGS/
   scene/                  # camera, dataset, and Gaussian model definitions
   utils/                  # geometry, image, loss, and system utilities
   submodules/             # CUDA extensions used by the renderer
+  assets/                 # paper framework figure used in this README
   train.py                # training entry point
   render.py               # rendering and mesh extraction entry point
   DigitalProduct.py       # DOM and DSM generation from exported mesh
@@ -28,7 +60,7 @@ SeaIceGS/
 Clone the repository:
 
 ```bash
-git clone git@github.com:QuanJianji/SeaIceGS.git
+git clone https://github.com/IRIS-LAB-whu/SeaIceGS.git
 cd SeaIceGS
 ```
 
@@ -84,7 +116,7 @@ data/
         images.bin
         points3D.bin
 ```
- For murre_out folder,
+ For murre_out folder, please follow the lead of [Murre](https://github.com/zju3dv/Murre)
  For polar sea-ice imagery, DOM and DSM products can also be generated with SeaIceGS outputs or with photogrammetry software such as Metashape Professional.
 
 ## Training
@@ -131,9 +163,9 @@ The script searches `mesh/` for `tsdf_fusion_scaled.ply`, `tsdf_fusion_post.ply`
 
 If multiple mesh files exist and a specific one is needed, specify it with `--mesh-name`.
 
-## Sea Ice Parameters retrieval
+## Sea-Ice Parameter Retrieval
 
-For the retrieval of SIC and relative SIF, please follow the lead of [IceRetrieval](https://github.com/QuanJianji/IceRetrieval)
+For mask generation, sea ice concentration (SIC), and total freeboard (TFB) retrieval from the generated DOM and DSM, see [IceRetrieval](https://github.com/QuanJianji/IceRetrieval).
 
 ## Notes for Sea-Ice Scenes
 
@@ -141,6 +173,22 @@ For the retrieval of SIC and relative SIF, please follow the lead of [IceRetriev
 - Adjust `--max_depth` and `--voxel_size` according to scene scale.
 - For noisy or incomplete viewpoints, enable `--use_depth_filter` during mesh extraction.
 - Reduce `--opacity_cull_threshold` carefully when thin ice fragments or small floes need to be preserved.
+
+## Citation
+
+If you use SeaIceGS in your research, please cite our paper:
+
+```bibtex
+@article{ji2026seaicegs,
+  author  = {Ji, Quanjian and Wang, Tengfei and Yu, Yifei and Shen, Zhe and Zhang, Shuhang and Shen, Yue and Wang, Tianxing and Chen, Zhuoqi and Ai, Songtao and Wang, Xin and Zhan, Zongqian},
+  title   = {{SeaIceGS}: Depth-constrained {3D} Gaussian Splatting for Sea Ice Concentration and Total Freeboard Estimation from Polar {UAV} Imagery},
+  journal = {IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing},
+  year    = {2026},
+  pages   = {1--18},
+  doi     = {10.1109/JSTARS.2026.3753633},
+  url     = {https://ieeexplore.ieee.org/document/11794150}
+}
+```
 
 ## Acknowledgements
 
