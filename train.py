@@ -129,20 +129,6 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     os.makedirs(debug_path, exist_ok=True)
 
     for iteration in range(first_iter, opt.iterations + 1):
-        # if network_gui.conn == None:
-        #     network_gui.try_connect()
-        # while network_gui.conn != None:
-        #     try:
-        #         net_image_bytes = None
-        #         custom_cam, do_training, pipe.convert_SHs_python, pipe.compute_cov3D_python, keep_alive, scaling_modifer = network_gui.receive()
-        #         if custom_cam != None:
-        #             net_image = render(custom_cam, gaussians, pipe, background, scaling_modifer)["render"]
-        #             net_image_bytes = memoryview((torch.clamp(net_image, min=0, max=1.0) * 255).byte().permute(1, 2, 0).contiguous().cpu().numpy())
-        #         network_gui.send(net_image_bytes, dataset.source_path)
-        #         if do_training and ((iteration < int(opt.iterations)) or not keep_alive):
-        #             break
-        #     except Exception as e:
-        #         network_gui.conn = None
 
         iter_start.record()
         gaussians.update_learning_rate(iteration)
@@ -151,17 +137,15 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             gaussians.oneupSHdegree()
 
         if iteration == 1:
-            print(">> 阶段1：冻结颜色，只训练几何")
+            print(">>stage1: freeze color")
 
-        # #在训练过程中动态控制 requires_grad
         if iteration < 3000:
-            # 冻结颜色参数
+
             gaussians._features_dc.requires_grad_(False)
             gaussians._features_rest.requires_grad_(False)
         else:
-            # 解冻颜色参数（只做一次）
             if not gaussians._features_dc.requires_grad:
-                print(f">> 阶段2：解冻颜色参数（iteration={iteration}）")
+                print(f">> stage2: unfreeze（iteration={iteration}）")
                 gaussians._features_dc.requires_grad_(True)
                 gaussians._features_rest.requires_grad_(True)
         
@@ -184,109 +168,6 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         image, viewspace_point_tensor, visibility_filter, radii = \
             render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
         
-        # hr_every_iters = getattr(opt, "hr_supervision_interval", 20)   # 每 N iter 做一次
-        # hr_crop_size = getattr(opt, "hr_crop_size", 512)               # HR patch 大小
-        # hr_lambda = getattr(opt, "hr_lambda", 0.5)                     # HR loss 权重（按需调）
-        # use_hard_mining = getattr(opt, "hr_hard_mining", True)
-        # if iteration < 7000:
-        #     hr_lambda = 0.2
-        #     use_hard_mining = False
-        # else:
-        #     hr_lambda = 1.2
-        #     use_hard_mining = True
-        # Loss
-        # if iteration > 0:  # 或你想开始加 perceptual loss 的阶段
-        #     perc_loss = vgg_loss_fn(image.unsqueeze(0), gt_image.unsqueeze(0))
-        #     loss += 0.1 * perc_loss  
-        # if (iteration % hr_every_iters == 0) and (hr_lambda > 0):
-        #     try:
-        #         # 1) 尝试直接读取原始 high-res 图像（cv2读取 BGR）
-        #         #    组合路径： viewpoint_cam.image_path + viewpoint_cam.image_name （与你现有代码风格一致）
-        #         img_path = os.path.join(viewpoint_cam.image_path, viewpoint_cam.image_name) if hasattr(viewpoint_cam, "image_path") else None
-        #         if img_path and os.path.exists(img_path):
-        #             full_img_bgr = cv2.imread(img_path, cv2.IMREAD_COLOR)
-        #             full_img = cv2.cvtColor(full_img_bgr, cv2.COLOR_BGR2RGB)
-        #             full_img = full_img.astype(np.float32) / 255.0
-        #             # convert to torch CHW
-        #             full_img_t = torch.from_numpy(full_img).permute(2, 0, 1).unsqueeze(0).to("cuda")
-        #         else:
-        #             # 备选：如果找不到文件，用已有的 gt_image（可能已被 downsample）
-        #             # 将 gt_image 放大到更高分辨率作为 proxy（效果不如原始）
-        #             full_img_t = F.interpolate(gt_image.unsqueeze(0), scale_factor=opt.hr_proxy_upscale if hasattr(opt, "hr_proxy_upscale") else 4, mode='bilinear', align_corners=False)
-                
-        #         _, _, H_full, W_full = full_img_t.shape
-
-        #         # 2) 选择 HR patch 的左上角位置
-        #         if use_hard_mining:
-        #             # 用当前 render（低分辨率）上采样到 full 图尺寸，计算像素误差热图，取误差最大区域
-        #             # render: shape (C,H_r,W_r)  -> upsample to (C,H_full,W_full)
-        #             render_upsampled = F.interpolate(image.unsqueeze(0), size=(H_full, W_full), mode='bilinear', align_corners=False).squeeze(0)
-        #             # 计算 per-pixel L1 error (灰度)
-        #             render_gray = 0.2989 * render_upsampled[0] + 0.5870 * render_upsampled[1] + 0.1140 * render_upsampled[2]
-        #             gt_gray = 0.2989 * full_img_t[0,0] + 0.5870 * full_img_t[0,1] + 0.1140 * full_img_t[0,2]
-        #             err_map = (render_gray - gt_gray).abs()
-        #             # 将 err_map 用窗口求和得到 patch-score map（快速卷积）
-        #             # 使用平均池化模拟窗口求和
-        #             kernel = hr_crop_size
-        #             # 注意：当 full 图小于 crop size 时 fallback
-        #             if H_full < hr_crop_size or W_full < hr_crop_size:
-        #                 top, left = 0, 0
-        #                 cur_crop_h, cur_crop_w = H_full, W_full
-        #             else:
-        #                 err_map_unsq = err_map.unsqueeze(0).unsqueeze(0)  # 1x1xH x W
-        #                 score_map = F.avg_pool2d(err_map_unsq, kernel_size=hr_crop_size, stride=1, padding=0).squeeze()
-        #                 # 找到 score_map 最大位置
-        #                 max_idx = torch.argmax(score_map)
-        #                 # convert to 2D coords in score_map (H_full-hr+1, W_full-hr+1)
-        #                 score_H = H_full - hr_crop_size + 1
-        #                 score_W = W_full - hr_crop_size + 1
-        #                 top = (max_idx // score_W).item()
-        #                 left = (max_idx % score_W).item()
-        #                 cur_crop_h, cur_crop_w = hr_crop_size, hr_crop_size
-        #         else:
-        #             # 随机采样一个 patch
-        #             if H_full < hr_crop_size or W_full < hr_crop_size:
-        #                 top, left = 0, 0
-        #                 cur_crop_h, cur_crop_w = H_full, W_full
-        #             else:
-        #                 top = np.random.randint(0, H_full - hr_crop_size + 1)
-        #                 left = np.random.randint(0, W_full - hr_crop_size + 1)
-        #                 cur_crop_h, cur_crop_w = hr_crop_size, hr_crop_size
-
-        #         # 3) 切出 GT HR patch
-        #         hr_gt_patch = full_img_t[:, :, top:top+cur_crop_h, left:left+cur_crop_w]  # 1x3xh x w
-
-        #         # 4) 从当前 render（low res）上采样得到对应的 rendered patch（效率高）
-        #         render_upsampled_full = F.interpolate(image.unsqueeze(0), size=(H_full, W_full), mode='bilinear', align_corners=False)
-        #         hr_render_patch = render_upsampled_full[:, :, top:top+cur_crop_h, left:left+cur_crop_w]
-
-        #         # 5) 计算 HR losses：L1 + gradient loss（Sobel-like），可加 SSIM/LPIPS（如有）
-        #         # L1
-        #         hr_l1 = F.l1_loss(hr_render_patch, hr_gt_patch)
-        #         # gradient loss: 强化高频（Sobel kernels 实现）
-        #         def image_gradient_loss(x, y):
-        #             # x,y : 1x3xhxw
-        #             sobel_x = torch.tensor([[1,0,-1],[2,0,-2],[1,0,-1]], dtype=torch.float32, device=x.device).view(1,1,3,3)
-        #             sobel_y = sobel_x.transpose(-2,-1)
-        #             gx_x = F.conv2d(x, sobel_x.repeat(3,1,1,1), groups=3, padding=1)
-        #             gy_x = F.conv2d(x, sobel_y.repeat(3,1,1,1), groups=3, padding=1)
-        #             gx_y = F.conv2d(y, sobel_x.repeat(3,1,1,1), groups=3, padding=1)
-        #             gy_y = F.conv2d(y, sobel_y.repeat(3,1,1,1), groups=3, padding=1)
-        #             return F.l1_loss(torch.sqrt(gx_x**2 + gy_x**2 + 1e-6), torch.sqrt(gx_y**2 + gy_y**2 + 1e-6))
-        #         hr_grad = image_gradient_loss(hr_render_patch, hr_gt_patch)
-
-        #         # combine
-        #         hr_loss = hr_lambda * (hr_l1 + 0.5 * hr_grad)
-        #         loss = loss + hr_loss
-
-        #         # optional: log to tensorboard
-        #         if tb_writer and (iteration % (hr_every_iters*5) == 0):
-        #             tb_writer.add_scalar('train_hr/hr_l1', hr_l1.item(), iteration)
-        #             tb_writer.add_scalar('train_hr/hr_grad', hr_grad.item(), iteration)
-        #     except Exception as e:
-        #         # 如果任何地方出错，打印但不影响主训练（保持鲁棒）
-        #         print(f"[WARN] HR supervision skipped at iter {iteration} due to {e}")
-
         if iteration > 3000:
             ssim_loss = (1.0 - ssim(image, gt_image))
             if 'app_image' in render_pkg and ssim_loss < 0.5:
@@ -520,11 +401,11 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             if iteration % 10 == 0:
                 loss_dict = {
                     "Loss": f"{ema_loss_for_log:.{5}f}",
+                    "Geo": f"{ema_multi_view_geo_for_log:.{5}f}",
+                    "Pho": f"{ema_multi_view_pho_for_log:.{5}f}",
                     "Single-normal": f"{ema_single_view_for_log:.{5}f}",
                     "Single-depth": f"{ema_single_view_dep_for_log:.{5}f}",
                     "embed": f"{ema_single_view_embedding_for_log:.{5}f}",
-                    "Geo": f"{ema_multi_view_geo_for_log:.{5}f}",
-                    "Pho": f"{ema_multi_view_pho_for_log:.{5}f}",
                     "Points": f"{len(gaussians.get_xyz)}"
                 }
                 progress_bar.set_postfix(loss_dict)
